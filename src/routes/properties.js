@@ -815,10 +815,17 @@ router.post('/search-and-analyze-pool', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Searching for properties in:', location);
 
+    // Convert numeric filters to numbers
+    const cleanFilters = { ...filters };
+    if (cleanFilters.minPrice) cleanFilters.minPrice = Number(cleanFilters.minPrice);
+    if (cleanFilters.maxPrice) cleanFilters.maxPrice = Number(cleanFilters.maxPrice);
+    if (cleanFilters.minBedrooms) cleanFilters.minBedrooms = Number(cleanFilters.minBedrooms);
+    if (cleanFilters.maxBedrooms) cleanFilters.maxBedrooms = Number(cleanFilters.maxBedrooms);
+
     // Step 1: Search for properties
     const rawSearchResults = await zillowService.searchProperties({
       location,
-      filters
+      filters: cleanFilters
     });
 
     // Transform search results to extract properties array
@@ -924,10 +931,17 @@ router.post('/search-and-analyze-backyard', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Searching for properties in:', location);
 
+    // Convert numeric filters to numbers
+    const cleanFilters = { ...filters };
+    if (cleanFilters.minPrice) cleanFilters.minPrice = Number(cleanFilters.minPrice);
+    if (cleanFilters.maxPrice) cleanFilters.maxPrice = Number(cleanFilters.maxPrice);
+    if (cleanFilters.minBedrooms) cleanFilters.minBedrooms = Number(cleanFilters.minBedrooms);
+    if (cleanFilters.maxBedrooms) cleanFilters.maxBedrooms = Number(cleanFilters.maxBedrooms);
+
     // Step 1: Search for properties
     const rawSearchResults = await zillowService.searchProperties({
       location,
-      filters
+      filters: cleanFilters
     });
 
     // Transform search results to extract properties array
