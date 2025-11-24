@@ -12,14 +12,21 @@ class ZillowService {
     this.baseURL = `https://${this.apiHost}`;
     
     // Create axios instance with default headers
-    this.client = axios.create({
+    const axiosConfig = {
       baseURL: this.baseURL,
       headers: {
         'x-rapidapi-key': this.apiKey,
         'x-rapidapi-host': this.apiHost
       },
       timeout: 10000
-    });
+    };
+
+    // In development, allow self-signed certificates
+    if (config.server.nodeEnv === 'development') {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    }
+
+    this.client = axios.create(axiosConfig);
   }
 
   /**
