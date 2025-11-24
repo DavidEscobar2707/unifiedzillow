@@ -8,6 +8,7 @@ const config = require('./config');
 const logger = require('./middleware/logger');
 const rateLimiter = require('./middleware/rateLimiter');
 const errorHandler = require('./middleware/errorHandler');
+const { corsMiddleware } = require('./middleware/cors');
 const propertiesRouter = require('./routes/properties');
 
 // Initialize Express app
@@ -16,6 +17,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(corsMiddleware);
 app.use(logger);
 app.use(rateLimiter);
 

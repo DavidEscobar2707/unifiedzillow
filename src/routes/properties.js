@@ -10,6 +10,7 @@ const transformService = require('../services/transformService');
 const visualInspector = require('../services/visualInspector');
 const leadQualityService = require('../services/leadQualityService');
 const responseFormatter = require('../services/responseFormatter');
+const batchLeadService = require('../services/batchLeadService');
 
 const router = express.Router();
 
@@ -1124,6 +1125,157 @@ router.post('/search-and-analyze', async (req, res, next) => {
     });
 
     res.status(200).json(batchResponse);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/properties/batch-leads
+ * Get batch of valid leads with automatic validation
+ * Fetches more leads than requested to ensure quality
+ * 
+ * Request Body:
+ *   - location (required): Property location
+ *   - leadType (required): Type of lead (PoolLeadGen or BackyardBoost)
+ *   - requestedLeads (required): Number of leads (10, 25, 50, or 100)
+ */
+router.post('/batch-leads', async (req, res, next) => {
+  try {
+    const { location, leadType, requestedLeads } = req.body;
+
+    // Validate required parameters
+    if (!location || typeof location !== 'string' || location.trim() === '') {
+      throw new Error('Location parameter is required and must be a non-empty string');
+    }
+
+    if (!['PoolLeadGen', 'BackyardBoost'].includes(leadType)) {
+      throw new Error('Lead type must be PoolLeadGen or BackyardBoost');
+    }
+
+    const validRequestedLeads = [10, 25, 50, 100];
+    if (!validRequestedLeads.includes(requestedLeads)) {
+      throw new Error('Requested leads must be 10, 25, 50, or 100');
+    }
+
+    console.log('[PropertiesRoute] Batch leads request:', {
+      location,
+      leadType,
+      requestedLeads
+    });
+
+    // Generate cache key
+    const cacheKey = cacheService.generateKey('batch-leads', {
+      location,
+      leadType,
+      requestedLeads
+    });
+
+    // Check cache first (cache for 1 hour)
+    const cachedResult = cacheService.get(cacheKey);
+    if (cachedResult) {
+      console.log('[PropertiesRoute] Returning cached batch leads');
+      return res.status(200).json(cachedResult);
+    }
+
+    // Get batch leads
+    const batchResult = await batchLeadService.getBatchLeads(
+      location,
+      leadType,
+      requestedLeads
+    );
+
+    // Wrap response
+    const response = {
+      success: true,
+      data: batchResult,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        source: 'zillow-batch-lead-service',
+        cached: false
+      }
+    };
+
+    // Cache the result
+    cacheService.set(cacheKey, response, 3600); // 1 hour
+
+    console.log('[PropertiesRoute] Batch leads completed:', {
+      location,
+      leadType,
+      requested: requestedLeads,
+      delivered: batchResult.leads.length
+    });
+
+    res.status(200).json(response);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/properties/batch-leads-multiple
+ * Get batch of valid leads for multiple lead types
+ * 
+ * Request Body:
+ *   - location (required): Property location
+ *   - leadTypes (required): Array of lead types (PoolLeadGen, BackyardBoost)
+ *   - requestedLeads (required): Number of leads per type (10, 25, 50, or 100)
+ */
+router.post('/batch-leads-multiple', async (req, res, next) => {
+  try {
+    const { location, leadTypes, requestedLeads } = req.body;
+
+    // Validate required parameters
+    if (!location || typeof location !== 'string' || location.trim() === '') {
+      throw new Error('Location parameter is required and must be a non-empty string');
+    }
+
+    if (!Array.isArray(leadTypes) || leadTypes.length === 0) {
+      throw new Error('Lead types must be a non-empty array');
+    }
+
+    for (const leadType of leadTypes) {
+      if (!['PoolLeadGen', 'BackyardBoost'].includes(leadType)) {
+        throw new Error('Each lead type must be PoolLeadGen or BackyardBoost');
+      }
+    }
+
+    const validRequestedLeads = [10, 25, 50, 100];
+    if (!validRequestedLeads.includes(requestedLeads)) {
+      throw new Error('Requested leads must be 10, 25, 50, or 100');
+    }
+
+    console.log('[PropertiesRoute] Batch leads multiple request:', {
+      location,
+      leadTypes,
+      requestedLeads
+    });
+
+    // Get batch leads for multiple types
+    const batchResult = await batchLeadService.getBatchLeadsMultiple(
+      location,
+      leadTypes,
+      requestedLeads
+    );
+
+    // Wrap response
+    const response = {
+      success: true,
+      data: batchResult,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        source: 'zillow-batch-lead-service',
+        cached: false
+      }
+    };
+
+    console.log('[PropertiesRoute] Batch leads multiple completed:', {
+      location,
+      leadTypes,
+      requestedLeads
+    });
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
