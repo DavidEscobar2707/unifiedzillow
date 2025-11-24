@@ -29,8 +29,8 @@ class TransformService {
       yearBuilt: this.parseNumber(rawData.yearBuilt),
       listingUrl: rawData.url || rawData.listingUrl || rawData.detailUrl || '',
       imageUrl: rawData.imageUrl || rawData.image || rawData.imgSrc || '',
-      latitude: this.parseNumber(rawData.latitude),
-      longitude: this.parseNumber(rawData.longitude),
+      latitude: this.parseNumber(rawData.latitude || rawData.lat),
+      longitude: this.parseNumber(rawData.longitude || rawData.lng || rawData.lon),
       has_pool: rawData.has_pool || false,
       has_backyard: rawData.has_backyard !== false,
       lastUpdated: rawData.lastUpdated || new Date().toISOString()
