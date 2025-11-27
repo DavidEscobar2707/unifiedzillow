@@ -45,12 +45,12 @@ module.exports = {
 
   // Visual Inspector Configuration
   visualInspector: {
-    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
-    openaiApiKey: process.env.OPENAI_API_KEY,
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY?.trim().replace(/^["']|["']$/g, ''),
+    openaiApiKey: process.env.OPENAI_API_KEY?.trim().replace(/^["']|["']$/g, ''),
     openaiModel: process.env.OPENAI_MODEL || 'gpt-4o',
-    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiApiKey: process.env.GEMINI_API_KEY?.trim().replace(/^["']|["']$/g, ''),
     geminiModel: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    groqApiKey: process.env.GROQ_API_KEY,
+    groqApiKey: process.env.GROQ_API_KEY?.trim().replace(/^["']|["']$/g, ''),
     groqModel: process.env.GROQ_MODEL || 'llama-2-90b-vision-preview'
   }
 };

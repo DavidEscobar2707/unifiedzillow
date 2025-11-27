@@ -19,10 +19,13 @@ class VisualInspector {
       timeout: 10000
     });
 
+    // Validate and clean API key
+    const cleanApiKey = this.openaiApiKey?.trim().replace(/^["']|["']$/g, '');
+    
     this.openaiClient = axios.create({
       baseURL: 'https://api.openai.com/v1',
       headers: {
-        'Authorization': `Bearer ${this.openaiApiKey}`,
+        'Authorization': `Bearer ${cleanApiKey}`,
         'Content-Type': 'application/json'
       },
       timeout: 30000
@@ -80,80 +83,7 @@ class VisualInspector {
     }
   }
 
-  /**
-   * Analyze property image with Groq Vision model (second fallback)
-   * @param {string} imageUrl - URL of the satellite image
-   * @param {string} leadType - Type of lead: 'PoolLeadGen' or 'BackyardBoost'
-   * @param {object} propertyData - Optional Zillow property data for context
-   * @returns {Promise<object>} Analysis results with confidence scores
-   * @throws {Error} If analysis fails
-   */
-  async analyzePropertyWithGroq(imageUrl, leadType, propertyData = {}) {
-    try {
-      if (!config.visualInspector.groqApiKey) {
-        throw new Error('GROQ_API_KEY is not configured');
-      }
 
-      if (!imageUrl) {
-        throw new Error('Image URL is required');
-      }
-
-      if (!['PoolLeadGen', 'BackyardBoost'].includes(leadType)) {
-        throw new Error('Lead type must be either PoolLeadGen or BackyardBoost');
-      }
-
-      // Generate dynamic prompt based on lead type
-      const prompt = this.generatePrompt(leadType, propertyData);
-
-      console.log(`[VisualInspector] Analyzing image with Groq (${config.visualInspector.groqModel}) for lead type: ${leadType}`);
-
-      const requestBody = {
-        model: config.visualInspector.groqModel,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: imageUrl
-                }
-              },
-              {
-                type: 'text',
-                text: prompt
-              }
-            ]
-          }
-        ],
-        max_tokens: 1024,
-        temperature: 0.2
-      };
-
-      const response = await axios.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        requestBody,
-        {
-          headers: {
-            'Authorization': `Bearer ${config.visualInspector.groqApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000
-        }
-      );
-
-      const analysisText = response.data.choices[0].message.content;
-      
-      // Parse JSON response from LLM
-      const analysis = this.parseAnalysisResponse(analysisText, leadType);
-
-      console.log(`[VisualInspector] Successfully analyzed image with Groq for ${leadType}`);
-      return analysis;
-    } catch (error) {
-      console.error(`[VisualInspector] Error analyzing image with Groq:`, error.message);
-      throw new Error(`Failed to analyze image with Groq: ${error.message}`);
-    }
-  }
 
   /**
    * Analyze property image with Gemini Vision model (fallback)
@@ -204,7 +134,7 @@ class VisualInspector {
         }
       };
 
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`;
       const response = await this.geminiClient.post(url, requestBody);
 
       const analysisText = response.data.candidates[0].content.parts[0].text;
@@ -239,7 +169,7 @@ class VisualInspector {
 
   /**
    * Analyze property image with GPT-4o Vision model (primary)
-   * Falls back to Groq, then Gemini if OpenAI fails
+   * Falls back to Gemini if OpenAI fails
    * @param {string} imageUrl - URL of the satellite image
    * @param {string} leadType - Type of lead: 'PoolLeadGen' or 'BackyardBoost'
    * @param {object} propertyData - Optional Zillow property data for context
@@ -249,8 +179,8 @@ class VisualInspector {
   async analyzePropertyWithLLM(imageUrl, leadType, propertyData = {}) {
     try {
       if (!this.openaiApiKey) {
-        console.warn('[VisualInspector] OPENAI_API_KEY not configured, attempting Groq fallback');
-        return await this.analyzePropertyWithGroq(imageUrl, leadType, propertyData);
+        console.warn('[VisualInspector] OPENAI_API_KEY not configured, attempting Gemini fallback');
+        return await this.analyzePropertyWithGemini(imageUrl, leadType, propertyData);
       }
 
       if (!imageUrl) {
@@ -299,20 +229,13 @@ class VisualInspector {
       return analysis;
     } catch (error) {
       console.error(`[VisualInspector] Error analyzing image with GPT-4o:`, error.message);
-      console.log('[VisualInspector] Attempting Groq fallback...');
+      console.log('[VisualInspector] Attempting Gemini fallback...');
 
       try {
-        return await this.analyzePropertyWithGroq(imageUrl, leadType, propertyData);
-      } catch (groqError) {
-        console.error(`[VisualInspector] Groq fallback failed:`, groqError.message);
-        console.log('[VisualInspector] Attempting Gemini fallback...');
-
-        try {
-          return await this.analyzePropertyWithGemini(imageUrl, leadType, propertyData);
-        } catch (geminiError) {
-          console.error(`[VisualInspector] Gemini fallback also failed:`, geminiError.message);
-          throw new Error(`Failed to analyze image with all providers (OpenAI, Groq, Gemini): ${error.message}`);
-        }
+        return await this.analyzePropertyWithGemini(imageUrl, leadType, propertyData);
+      } catch (geminiError) {
+        console.error(`[VisualInspector] Gemini fallback also failed:`, geminiError.message);
+        throw new Error(`Failed to analyze image with all providers (OpenAI, Gemini): ${error.message}`);
       }
     }
   }

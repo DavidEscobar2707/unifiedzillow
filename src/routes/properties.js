@@ -11,6 +11,7 @@ const visualInspector = require('../services/visualInspector');
 const leadQualityService = require('../services/leadQualityService');
 const responseFormatter = require('../services/responseFormatter');
 const batchLeadService = require('../services/batchLeadService');
+const marketAnalyzerService = require('../services/marketAnalyzerService');
 
 const router = express.Router();
 
@@ -1331,6 +1332,79 @@ router.get('/:id', async (req, res, next) => {
     cacheService.set(cacheKey, transformedResponse);
 
     res.status(200).json(transformedResponse);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/properties/market-analyzer
+ * Analyze market opportunities - find properties where rent is higher than mortgage
+ * 
+ * Request Body:
+ *   - location (required): Property location (city, zip code, etc.)
+ *   - filters (optional): Search filters (minPrice, maxPrice, minBedrooms, maxBedrooms)
+ *   - analysisOptions (optional): Investment analysis parameters
+ *     - downPaymentPercent: Down payment percentage (default 20)
+ *     - interestRate: Annual interest rate (default 6.5)
+ *     - loanTermYears: Loan term in years (default 30)
+ *     - maintenancePercent: Annual maintenance as % of property value (default 1)
+ *     - vacancyPercent: Vacancy rate percentage (default 5)
+ *     - propertyManagementPercent: Property management as % of rental income (default 8)
+ */
+router.post('/market-analyzer', async (req, res, next) => {
+  try {
+    const { location, filters = {}, analysisOptions = {} } = req.body;
+
+    // Validate location
+    if (!location || typeof location !== 'string' || location.trim() === '') {
+      throw new Error('Location parameter is required and must be a non-empty string');
+    }
+
+    console.log('[PropertiesRoute] Market analysis request for location:', location);
+
+    // Generate cache key
+    const cacheKey = cacheService.generateKey('market-analysis', {
+      location,
+      filters,
+      analysisOptions
+    });
+
+    // Check cache first (cache for 6 hours)
+    const cachedResult = cacheService.get(cacheKey);
+    if (cachedResult) {
+      console.log('[PropertiesRoute] Returning cached market analysis');
+      return res.status(200).json(cachedResult);
+    }
+
+    // Perform market analysis
+    const analysisResult = await marketAnalyzerService.analyzeMarketOpportunities(
+      location,
+      filters,
+      analysisOptions
+    );
+
+    // Wrap response
+    const response = {
+      success: true,
+      data: analysisResult,
+      metadata: {
+        timestamp: new Date().toISOString(),
+        source: 'zillow-market-analyzer',
+        cached: false
+      }
+    };
+
+    // Cache the result (6 hours)
+    cacheService.set(cacheKey, response, 21600);
+
+    console.log('[PropertiesRoute] Market analysis completed:', {
+      location,
+      totalAnalyzed: analysisResult.totalPropertiesAnalyzed,
+      opportunities: analysisResult.summary.opportunityCount
+    });
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
