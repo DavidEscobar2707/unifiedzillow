@@ -4,15 +4,13 @@ const config = require('../config');
 /**
  * Visual Inspector Service
  * Validates property characteristics using satellite imagery and multimodal LLM analysis
- * Supports OpenAI (primary) and Gemini (fallback) for image analysis
+ * Uses OpenAI GPT-4o for image analysis
  */
 class VisualInspector {
   constructor() {
     this.googleMapsApiKey = config.visualInspector.googleMapsApiKey;
     this.openaiApiKey = config.visualInspector.openaiApiKey;
     this.openaiModel = config.visualInspector.openaiModel;
-    this.geminiApiKey = config.visualInspector.geminiApiKey;
-    this.geminiModel = config.visualInspector.geminiModel;
 
     // Create axios instances for external APIs
     this.googleMapsClient = axios.create({
@@ -28,10 +26,6 @@ class VisualInspector {
         'Authorization': `Bearer ${cleanApiKey}`,
         'Content-Type': 'application/json'
       },
-      timeout: 30000
-    });
-
-    this.geminiClient = axios.create({
       timeout: 30000
     });
   }
@@ -85,70 +79,7 @@ class VisualInspector {
 
 
 
-  /**
-   * Analyze property image with Gemini Vision model (fallback)
-   * @param {string} imageUrl - URL of the satellite image
-   * @param {string} leadType - Type of lead: 'PoolLeadGen' or 'BackyardBoost'
-   * @param {object} propertyData - Optional Zillow property data for context
-   * @returns {Promise<object>} Analysis results with confidence scores
-   * @throws {Error} If analysis fails
-   */
-  async analyzePropertyWithGemini(imageUrl, leadType, propertyData = {}) {
-    try {
-      if (!this.geminiApiKey) {
-        throw new Error('GEMINI_API_KEY is not configured');
-      }
 
-      if (!imageUrl) {
-        throw new Error('Image URL is required');
-      }
-
-      if (!['PoolLeadGen', 'BackyardBoost'].includes(leadType)) {
-        throw new Error('Lead type must be either PoolLeadGen or BackyardBoost');
-      }
-
-      // Generate dynamic prompt based on lead type
-      const prompt = this.generatePrompt(leadType, propertyData);
-
-      console.log(`[VisualInspector] Analyzing image with Gemini (${this.geminiModel}) for lead type: ${leadType}`);
-
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              },
-              {
-                inline_data: {
-                  mime_type: 'image/jpeg',
-                  data: await this.fetchImageAsBase64(imageUrl)
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 1024
-        }
-      };
-
-      const url = `https://generativelanguage.googleapis.com/v1/models/${this.geminiModel}:generateContent?key=${this.geminiApiKey}`;
-      const response = await this.geminiClient.post(url, requestBody);
-
-      const analysisText = response.data.candidates[0].content.parts[0].text;
-      
-      // Parse JSON response from LLM
-      const analysis = this.parseAnalysisResponse(analysisText, leadType);
-
-      console.log(`[VisualInspector] Successfully analyzed image with Gemini for ${leadType}`);
-      return analysis;
-    } catch (error) {
-      console.error(`[VisualInspector] Error analyzing image with Gemini:`, error.message);
-      throw new Error(`Failed to analyze image with Gemini: ${error.message}`);
-    }
-  }
 
   /**
    * Fetch image from URL and convert to base64
@@ -168,19 +99,17 @@ class VisualInspector {
   }
 
   /**
-   * Analyze property image with GPT-4o Vision model (primary)
-   * Falls back to Gemini if OpenAI fails
+   * Analyze property image with GPT-4o Vision model
    * @param {string} imageUrl - URL of the satellite image
    * @param {string} leadType - Type of lead: 'PoolLeadGen' or 'BackyardBoost'
    * @param {object} propertyData - Optional Zillow property data for context
    * @returns {Promise<object>} Analysis results with confidence scores
-   * @throws {Error} If all analysis methods fail
+   * @throws {Error} If analysis fails
    */
   async analyzePropertyWithLLM(imageUrl, leadType, propertyData = {}) {
     try {
       if (!this.openaiApiKey) {
-        console.warn('[VisualInspector] OPENAI_API_KEY not configured, attempting Gemini fallback');
-        return await this.analyzePropertyWithGemini(imageUrl, leadType, propertyData);
+        throw new Error('OPENAI_API_KEY is not configured');
       }
 
       if (!imageUrl) {
@@ -229,14 +158,7 @@ class VisualInspector {
       return analysis;
     } catch (error) {
       console.error(`[VisualInspector] Error analyzing image with GPT-4o:`, error.message);
-      console.log('[VisualInspector] Attempting Gemini fallback...');
-
-      try {
-        return await this.analyzePropertyWithGemini(imageUrl, leadType, propertyData);
-      } catch (geminiError) {
-        console.error(`[VisualInspector] Gemini fallback also failed:`, geminiError.message);
-        throw new Error(`Failed to analyze image with all providers (OpenAI, Gemini): ${error.message}`);
-      }
+      throw new Error(`Visual analysis failed: ${error.message}`);
     }
   }
 
@@ -357,7 +279,7 @@ Return ONLY valid JSON, no additional text.`;
       // Step 1: Fetch satellite image
       const satelliteImageUrl = await this.getGoogleMapsStaticImage(latitude, longitude);
 
-      // Step 2: Analyze image with LLM (with fallback)
+      // Step 2: Analyze image with OpenAI GPT-4o
       const analysis = await this.analyzePropertyWithLLM(satelliteImageUrl, leadType, zillowData);
 
       // Step 3: Build validation result

@@ -12,6 +12,7 @@ const leadQualityService = require('../services/leadQualityService');
 const responseFormatter = require('../services/responseFormatter');
 const batchLeadService = require('../services/batchLeadService');
 const marketAnalyzerService = require('../services/marketAnalyzerService');
+const rateLimits = require('../config/rateLimits');
 
 const router = express.Router();
 
@@ -872,21 +873,36 @@ router.post('/search-and-analyze-pool', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
-    // Step 2: Analyze each property for pools
-    const analysisPromises = propertiesWithCoords.map(property =>
-      analyzePoolProperty({
-        zpid: property.id || property.zpid,
-        latitude: property.latitude,
-        longitude: property.longitude,
-        address: property.address,
-        zillow_data: property
-      }).catch(error => {
-        console.warn('[PropertiesRoute] Pool analysis failed for property:', property.id || property.zpid, error.message);
-        return null;
-      })
-    );
-
-    const analysisResults = await Promise.all(analysisPromises);
+    // Step 2: Analyze properties with rate limiting
+    const { concurrencyLimit, delayBetweenBatches } = rateLimits.visualAnalysis;
+    const analysisResults = [];
+    
+    for (let i = 0; i < propertiesWithCoords.length; i += concurrencyLimit) {
+      const batch = propertiesWithCoords.slice(i, i + concurrencyLimit);
+      console.log(`[PropertiesRoute] Processing batch ${Math.floor(i / concurrencyLimit) + 1} (${batch.length} properties)`);
+      
+      const batchPromises = batch.map(property =>
+        analyzePoolProperty({
+          zpid: property.id || property.zpid,
+          latitude: property.latitude,
+          longitude: property.longitude,
+          address: property.address,
+          zillow_data: property
+        }).catch(error => {
+          console.warn('[PropertiesRoute] Pool analysis failed for property:', property.id || property.zpid, error.message);
+          return null;
+        })
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      analysisResults.push(...batchResults);
+      
+      // Wait before next batch (except for last batch)
+      if (i + concurrencyLimit < propertiesWithCoords.length) {
+        console.log(`[PropertiesRoute] Waiting ${delayBetweenBatches}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
     const successfulResults = analysisResults.filter(r => r !== null);
 
     // Step 3: Format response
@@ -983,21 +999,36 @@ router.post('/search-and-analyze-backyard', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
-    // Step 2: Analyze each property for backyard
-    const analysisPromises = propertiesWithCoords.map(property =>
-      analyzeBackyardProperty({
-        zpid: property.id || property.zpid,
-        latitude: property.latitude,
-        longitude: property.longitude,
-        address: property.address,
-        zillow_data: property
-      }).catch(error => {
-        console.warn('[PropertiesRoute] Backyard analysis failed for property:', property.id || property.zpid, error.message);
-        return null;
-      })
-    );
-
-    const analysisResults = await Promise.all(analysisPromises);
+    // Step 2: Analyze properties with rate limiting
+    const { concurrencyLimit, delayBetweenBatches } = rateLimits.visualAnalysis;
+    const analysisResults = [];
+    
+    for (let i = 0; i < propertiesWithCoords.length; i += concurrencyLimit) {
+      const batch = propertiesWithCoords.slice(i, i + concurrencyLimit);
+      console.log(`[PropertiesRoute] Processing batch ${Math.floor(i / concurrencyLimit) + 1} (${batch.length} properties)`);
+      
+      const batchPromises = batch.map(property =>
+        analyzeBackyardProperty({
+          zpid: property.id || property.zpid,
+          latitude: property.latitude,
+          longitude: property.longitude,
+          address: property.address,
+          zillow_data: property
+        }).catch(error => {
+          console.warn('[PropertiesRoute] Backyard analysis failed for property:', property.id || property.zpid, error.message);
+          return null;
+        })
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      analysisResults.push(...batchResults);
+      
+      // Wait before next batch (except for last batch)
+      if (i + concurrencyLimit < propertiesWithCoords.length) {
+        console.log(`[PropertiesRoute] Waiting ${delayBetweenBatches}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
     const successfulResults = analysisResults.filter(r => r !== null);
 
     // Step 3: Format response
@@ -1101,23 +1132,37 @@ router.post('/search-and-analyze', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
-    // Step 2: Analyze each property based on lead type
+    // Step 2: Analyze properties with rate limiting
     const analyzeFunction = lead_type === 'PoolLeadGen' ? analyzePoolProperty : analyzeBackyardProperty;
+    const { concurrencyLimit, delayBetweenBatches } = rateLimits.visualAnalysis;
+    const analysisResults = [];
     
-    const analysisPromises = propertiesWithCoords.map(property =>
-      analyzeFunction({
-        zpid: property.id || property.zpid,
-        latitude: property.latitude,
-        longitude: property.longitude,
-        address: property.address,
-        zillow_data: property
-      }).catch(error => {
-        console.warn('[PropertiesRoute] Analysis failed for property:', property.id || property.zpid, error.message);
-        return null;
-      })
-    );
-
-    const analysisResults = await Promise.all(analysisPromises);
+    for (let i = 0; i < propertiesWithCoords.length; i += concurrencyLimit) {
+      const batch = propertiesWithCoords.slice(i, i + concurrencyLimit);
+      console.log(`[PropertiesRoute] Processing batch ${Math.floor(i / concurrencyLimit) + 1} (${batch.length} properties)`);
+      
+      const batchPromises = batch.map(property =>
+        analyzeFunction({
+          zpid: property.id || property.zpid,
+          latitude: property.latitude,
+          longitude: property.longitude,
+          address: property.address,
+          zillow_data: property
+        }).catch(error => {
+          console.warn('[PropertiesRoute] Analysis failed for property:', property.id || property.zpid, error.message);
+          return null;
+        })
+      );
+      
+      const batchResults = await Promise.all(batchPromises);
+      analysisResults.push(...batchResults);
+      
+      // Wait before next batch (except for last batch)
+      if (i + concurrencyLimit < propertiesWithCoords.length) {
+        console.log(`[PropertiesRoute] Waiting ${delayBetweenBatches}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+      }
+    }
     const successfulResults = analysisResults.filter(r => r !== null);
 
     // Step 3: Format response

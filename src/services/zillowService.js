@@ -18,7 +18,7 @@ class ZillowService {
         'x-rapidapi-key': this.apiKey,
         'x-rapidapi-host': this.apiHost
       },
-      timeout: 10000
+      timeout: 30000  // Increased from 10000 to 30000ms (30 seconds)
     };
 
     // In development, allow self-signed certificates
@@ -30,23 +30,68 @@ class ZillowService {
   }
 
   /**
-   * Generic method to make HTTP requests to Zillow API
+   * Generic method to make HTTP requests to Zillow API with retry logic
    * @param {string} endpoint - API endpoint path
    * @param {object} params - Query parameters
+   * @param {number} retries - Number of retry attempts (default 3)
    * @returns {Promise<object>} API response data
-   * @throws {Error} If request fails
+   * @throws {Error} If request fails after all retries
    */
-  async makeRequest(endpoint, params = {}) {
-    try {
-      console.log(`[ZillowService] Making request to ${endpoint}`, { params });
-      
-      const response = await this.client.get(endpoint, { params });
-      
-      console.log(`[ZillowService] Request successful to ${endpoint}`);
-      return response.data;
-    } catch (error) {
-      this.handleError(error, endpoint, params);
+  async makeRequest(endpoint, params = {}, retries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        console.log(`[ZillowService] Making request to ${endpoint} (attempt ${attempt}/${retries})`, { params });
+        
+        const response = await this.client.get(endpoint, { params });
+        
+        console.log(`[ZillowService] Request successful to ${endpoint}`);
+        return response.data;
+      } catch (error) {
+        lastError = error;
+        
+        // Check if error is retryable
+        const isRetryable = this.isRetryableError(error);
+        
+        if (attempt < retries && isRetryable) {
+          // Calculate exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, attempt - 1) * 1000;
+          console.log(`[ZillowService] Retrying in ${delay}ms... (attempt ${attempt}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else if (attempt === retries) {
+          // Last attempt failed
+          console.error(`[ZillowService] All ${retries} attempts failed for ${endpoint}`);
+          this.handleError(error, endpoint, params);
+        }
+      }
     }
+    
+    // Should not reach here, but just in case
+    this.handleError(lastError, endpoint, params);
+  }
+
+  /**
+   * Determine if an error is retryable
+   * @param {Error} error - The error to check
+   * @returns {boolean} True if the error is retryable
+   */
+  isRetryableError(error) {
+    // Retryable errors: timeout, 503, 429, network errors
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return true; // Timeout
+    }
+    
+    if (error.response) {
+      const status = error.response.status;
+      return status === 429 || status === 503 || status === 502 || status === 504;
+    }
+    
+    if (error.request && !error.response) {
+      return true; // No response received
+    }
+    
+    return false;
   }
 
   /**

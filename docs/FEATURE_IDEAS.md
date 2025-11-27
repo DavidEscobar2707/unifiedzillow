@@ -1,6 +1,8 @@
 # Feature Ideas - Zillow API Backend
 
-## Idea 1: Property Alert System (Priority: High)
+## Idea 1: Property Alert System (Priority: High) ✅ SPEC COMPLETE
+
+**Status:** Requirements and Design documents created
 
 **Description:**
 Scrape Zillow to find homes with specific conditions and send alerts to buyers:
@@ -36,6 +38,8 @@ Real estate investors and buyers want to be notified immediately when properties
    - SMS alerts (optional)
    - Webhook integration
    - Custom filters per user
+   - Alert deduplication (no duplicates within 24h)
+   - Opportunity scoring and ranking
 
 5. **Dashboard**
    - View all alerts
@@ -45,12 +49,23 @@ Real estate investors and buyers want to be notified immediately when properties
 
 **Technical Implementation:**
 - New service: `propertyAlertService.js`
+- New service: `alertSubscriptionService.js`
+- New service: `alertHistoryService.js`
+- New service: `alertDeduplicationService.js`
+- New service: `alertScoringService.js`
+- New service: `notificationService.js`
+- New routes: `src/routes/alerts.js`
 - New endpoint: `POST /api/properties/alerts/subscribe`
-- New endpoint: `GET /api/properties/alerts`
+- New endpoint: `GET /api/properties/alerts/subscriptions`
+- New endpoint: `PUT /api/properties/alerts/subscriptions/:id`
+- New endpoint: `DELETE /api/properties/alerts/subscriptions/:id`
+- New endpoint: `GET /api/properties/alerts/history`
+- New endpoint: `PUT /api/properties/alerts/:id/read`
 - New endpoint: `POST /api/properties/alerts/check`
 - Database: Store alert subscriptions and history
-- Scheduler: Periodic checks for new opportunities
+- Scheduler: Periodic checks for new opportunities (every 6 hours)
 - Notification service: Send alerts via email/SMS/webhook
+- Queue: Async notification processing
 
 **Data Points Needed:**
 - `listingDate` - When property was first listed
@@ -58,13 +73,19 @@ Real estate investors and buyers want to be notified immediately when properties
 - `listingStatus` - Current status (active, pending, sold, delisted)
 - `previousListings` - History of previous listings
 
-**Estimated Effort:** Medium (2-3 weeks)
+**Estimated Effort:** Medium (15-20 days)
 
 **Dependencies:**
 - Zillow API access to historical data
 - Database for storing subscriptions
 - Email/SMS service (SendGrid, Twilio)
 - Scheduler (node-cron or similar)
+- Message queue (Bull or similar)
+
+**Spec Files:**
+- `.kiro/specs/property-alert-system/requirements.md` - 10 requirements with acceptance criteria
+- `.kiro/specs/property-alert-system/design.md` - Architecture, components, data models, API endpoints
+- `.kiro/specs/property-alert-system/tasks.md` - 20+ implementation tasks organized in 7 phases
 
 ---
 
@@ -99,15 +120,18 @@ Real estate investors and buyers want to be notified immediately when properties
 
 ## Related Features
 
-### Market Analyzer (Already Implemented)
+### Market Analyzer (Already Implemented) ✅
 - Identifies positive cash flow properties
 - Analyzes investment metrics
 - Compares rent vs mortgage
+- Endpoint: `POST /api/properties/market-analyzer`
 
-### Property Alert System (Proposed)
+### Property Alert System (Spec Complete, Ready for Implementation)
 - Identifies market opportunities
 - Tracks price changes
 - Sends real-time alerts
+- Deduplicates alerts
+- Scores opportunities
 
 ### Combined Use Case
 1. Use Market Analyzer to find investment-grade properties
