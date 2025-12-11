@@ -804,17 +804,18 @@ router.post('/analyze-pool', async (req, res, next) => {
  * Request Body:
  *   - location (required): City, address, or zip code
  *   - filters (optional): Price, bedrooms, bathrooms filters
+ *   - count (optional): Maximum number of properties to analyze (default: all found)
  */
 router.post('/search-and-analyze-pool', async (req, res, next) => {
   try {
-    const { location, filters = {} } = req.body;
+    const { location, filters = {}, count } = req.body;
 
     // Validate location
     if (!location || typeof location !== 'string' || location.trim() === '') {
       throw new Error('Location parameter is required and must be a non-empty string');
     }
 
-    console.log('[PropertiesRoute] Searching for properties in:', location);
+    console.log('[PropertiesRoute] Searching for properties in:', location, count ? `(limit: ${count})` : '');
 
     // Convert numeric filters to numbers
     const cleanFilters = { ...filters };
@@ -872,8 +873,15 @@ router.post('/search-and-analyze-pool', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
+    // Limit properties if count is specified
+    const propertiesToAnalyze = count && count > 0 
+      ? propertiesWithCoords.slice(0, count) 
+      : propertiesWithCoords;
+
+    console.log('[PropertiesRoute] Analyzing', propertiesToAnalyze.length, 'properties for pools');
+
     // Step 2: Analyze each property for pools
-    const analysisPromises = propertiesWithCoords.map(property =>
+    const analysisPromises = propertiesToAnalyze.map(property =>
       analyzePoolProperty({
         zpid: property.id || property.zpid,
         latitude: property.latitude,
@@ -920,17 +928,18 @@ router.post('/search-and-analyze-pool', async (req, res, next) => {
  * Request Body:
  *   - location (required): City, address, or zip code
  *   - filters (optional): Price, bedrooms, bathrooms filters
+ *   - count (optional): Maximum number of properties to analyze (default: all found)
  */
 router.post('/search-and-analyze-backyard', async (req, res, next) => {
   try {
-    const { location, filters = {} } = req.body;
+    const { location, filters = {}, count } = req.body;
 
     // Validate location
     if (!location || typeof location !== 'string' || location.trim() === '') {
       throw new Error('Location parameter is required and must be a non-empty string');
     }
 
-    console.log('[PropertiesRoute] Searching for properties in:', location);
+    console.log('[PropertiesRoute] Searching for properties in:', location, count ? `(limit: ${count})` : '');
 
     // Convert numeric filters to numbers
     const cleanFilters = { ...filters };
@@ -983,8 +992,15 @@ router.post('/search-and-analyze-backyard', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
+    // Limit properties if count is specified
+    const propertiesToAnalyze = count && count > 0 
+      ? propertiesWithCoords.slice(0, count) 
+      : propertiesWithCoords;
+
+    console.log('[PropertiesRoute] Analyzing', propertiesToAnalyze.length, 'properties for backyards');
+
     // Step 2: Analyze each property for backyard
-    const analysisPromises = propertiesWithCoords.map(property =>
+    const analysisPromises = propertiesToAnalyze.map(property =>
       analyzeBackyardProperty({
         zpid: property.id || property.zpid,
         latitude: property.latitude,
@@ -1032,10 +1048,11 @@ router.post('/search-and-analyze-backyard', async (req, res, next) => {
  *   - location (required): City, address, or zip code
  *   - lead_type (required): 'PoolLeadGen' or 'BackyardBoost'
  *   - filters (optional): Price, bedrooms, bathrooms filters
+ *   - count (optional): Maximum number of properties to analyze (default: all found)
  */
 router.post('/search-and-analyze', async (req, res, next) => {
   try {
-    const { location, lead_type, filters = {} } = req.body;
+    const { location, lead_type, filters = {}, count } = req.body;
 
     // Validate location
     if (!location || typeof location !== 'string' || location.trim() === '') {
@@ -1047,7 +1064,7 @@ router.post('/search-and-analyze', async (req, res, next) => {
       throw new Error('Lead type must be either PoolLeadGen or BackyardBoost');
     }
 
-    console.log('[PropertiesRoute] Searching for properties in:', location, 'with lead type:', lead_type);
+    console.log('[PropertiesRoute] Searching for properties in:', location, 'with lead type:', lead_type, count ? `(limit: ${count})` : '');
 
     // Step 1: Search for properties
     const rawSearchResults = await zillowService.searchProperties({
@@ -1101,10 +1118,17 @@ router.post('/search-and-analyze', async (req, res, next) => {
 
     console.log('[PropertiesRoute] Found', propertiesWithCoords.length, 'properties with coordinates');
 
+    // Limit properties if count is specified
+    const propertiesToAnalyze = count && count > 0 
+      ? propertiesWithCoords.slice(0, count) 
+      : propertiesWithCoords;
+
+    console.log('[PropertiesRoute] Analyzing', propertiesToAnalyze.length, 'properties');
+
     // Step 2: Analyze each property based on lead type
     const analyzeFunction = lead_type === 'PoolLeadGen' ? analyzePoolProperty : analyzeBackyardProperty;
     
-    const analysisPromises = propertiesWithCoords.map(property =>
+    const analysisPromises = propertiesToAnalyze.map(property =>
       analyzeFunction({
         zpid: property.id || property.zpid,
         latitude: property.latitude,
