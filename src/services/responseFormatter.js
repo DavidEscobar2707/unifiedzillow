@@ -10,7 +10,7 @@ class ResponseFormatter {
    * @returns {object} Formatted lead object
    */
   formatLead(analysisResult, leadType) {
-    const { zpid, address, latitude, longitude, visualValidation, qualityReport, analysis } = analysisResult;
+    const { zpid, address, latitude, longitude, visualValidation, qualityReport, analysis, zillow_data } = analysisResult;
 
     // Extract vision data based on lead type
     let visionData = {};
@@ -37,6 +37,20 @@ class ResponseFormatter {
     // Calculate lead score (0-100) based on quality report
     const leadScore = this.calculateLeadScore(qualityReport);
 
+    // Extract property details from zillow_data if available
+    const propertyDetails = zillow_data ? {
+      bedrooms: zillow_data.bedrooms || zillow_data.beds || null,
+      bathrooms: zillow_data.bathrooms || zillow_data.baths || null,
+      square_feet: zillow_data.livingArea || zillow_data.squareFeet || null,
+      lot_size: zillow_data.lotAreaValue || zillow_data.lotSize || null,
+      year_built: zillow_data.yearBuilt || null,
+      property_type: zillow_data.homeType || zillow_data.propertyType || null,
+      price: zillow_data.price || null,
+      zillow_url: zillow_data.hdpUrl || zillow_data.url || `https://www.zillow.com/homedetails/${zpid}_zpid/`,
+      listing_status: zillow_data.homeStatus || zillow_data.status || null,
+      zestimate: zillow_data.zestimate || null
+    } : null;
+
     return {
       address,
       coordinates: {
@@ -44,6 +58,7 @@ class ResponseFormatter {
         lng: longitude
       },
       zpid,
+      property: propertyDetails,
       imagery: {
         image_url: visualValidation.satelliteImageUrl,
         zoom: 20,
@@ -151,6 +166,14 @@ class ResponseFormatter {
       'Latitude',
       'Longitude',
       'ZPID',
+      'Bedrooms',
+      'Bathrooms',
+      'Square Feet',
+      'Lot Size',
+      'Year Built',
+      'Property Type',
+      'Price',
+      'Zillow URL',
       'Lead Score',
       'Quality Score',
       'Confidence',
@@ -168,11 +191,20 @@ class ResponseFormatter {
     const rows = [headers.map(h => this.escapeCSVField(h)).join(',')];
 
     leads.forEach(lead => {
+      const prop = lead.property || {};
       const row = [
         lead.address,
         lead.coordinates.lat,
         lead.coordinates.lng,
         lead.zpid,
+        prop.bedrooms || '',
+        prop.bathrooms || '',
+        prop.square_feet || '',
+        prop.lot_size || '',
+        prop.year_built || '',
+        prop.property_type || '',
+        prop.price || '',
+        prop.zillow_url || '',
         lead.lead_score,
         lead.quality_report.score,
         lead.quality_report.confidence,

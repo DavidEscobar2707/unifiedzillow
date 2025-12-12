@@ -436,6 +436,7 @@ async function analyzeBackyardProperty(property) {
     address,
     latitude: lat,
     longitude: lon,
+    zillow_data: zillow_data || {},
     visualValidation: visualValidation.validation,
     qualityReport: {
       qualityScore: qualityReport.qualityScore,
@@ -649,6 +650,7 @@ async function analyzePoolProperty(property) {
     address,
     latitude: lat,
     longitude: lon,
+    zillow_data: zillow_data || {},
     visualValidation: visualValidation.validation,
     qualityReport: {
       qualityScore: qualityReport.qualityScore,
